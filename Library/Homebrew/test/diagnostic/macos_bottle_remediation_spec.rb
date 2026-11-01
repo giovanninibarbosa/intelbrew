@@ -7,23 +7,22 @@ RSpec.describe Homebrew::Diagnostic::Checks do
   subject(:checks) { described_class.new }
 
   describe "#macos_bottle_remediation" do
-    it "recommends MacPorts binaries on outdated Intel macOS" do
-      expect(checks.macos_bottle_remediation(MacOSVersion.new("13"), intel: true)).to eq <<~EOS
+    test_each(%w[11 13 15.7 26.1]) do |version|
+      it "explains retained Intel support and package limitations on macOS #{version}" do
+        expect(checks.macos_bottle_remediation(MacOSVersion.new(version), intel: true)).to include(
+          "Intelbrew retains support for Intel x86_64",
+          "Upstream Homebrew no longer supplies new Intel bottles.",
+          "updated formulae may build from source",
+          "Individual formulae and casks may not support your macOS version.",
+        )
+      end
+    end
+
+    it "retains alternative guidance below Intelbrew's minimum macOS version" do
+      expect(checks.macos_bottle_remediation(MacOSVersion.new("10.15"), intel: true)).to eq <<~EOS
         Homebrew no longer builds bottles for this configuration.
         Consider MacPorts, which provides binary packages for this macOS version:
           https://www.macports.org
-      EOS
-    end
-
-    it "recommends MacPorts binaries on Intel Sequoia" do
-      expect(checks.macos_bottle_remediation(MacOSVersion.new("15.7"), intel: true))
-        .to include("MacPorts")
-    end
-
-    it "explains bottle availability without recommending a replacement on Intel Tahoe" do
-      expect(checks.macos_bottle_remediation(MacOSVersion.new("26.1"), intel: true)).to eq <<~EOS
-        Homebrew no longer builds bottles for this configuration.
-        Existing bottles may still work, but updated formulae may build from source.
       EOS
     end
 

@@ -89,6 +89,17 @@ read-homebrew-git-config() {
   return 0
 }
 
+# Print the highest version-sorted intelbrew-X.Y.Z tag in a repository,
+# optionally restricted to tags merged into the second argument's ref.
+# Return nonzero without output when no valid release tag exists.
+# Keep in sync with Utils::Git.latest_intelbrew_tag in Library/Homebrew/utils/git.rb.
+latest-intelbrew-tag() {
+  local -a tag_args=()
+  [[ -n "${2:-}" ]] && tag_args+=(--merged "$2")
+  "${HOMEBREW_GIT}" -C "$1" tag --list 'intelbrew-*' --sort=-version:refname "${tag_args[@]}" |
+    awk '/^intelbrew-[0-9]+\.[0-9]+\.[0-9]+$/ && !found { print; found = 1 } END { exit !found }'
+}
+
 # Set HOMEBREW_VERSION from `git describe`, cached in .git/describe-cache
 # keyed by the HEAD revision. Leaves HOMEBREW_VERSION unchanged when the
 # revision cannot be determined e.g. in a shallow or non-Git repository.
@@ -155,13 +166,20 @@ set-homebrew-version-from-git() {
     read -r cached_version <"${git_describe_cache_file}"
     if [[ -n "${cached_version}" && "${cached_version}" != *"-dirty" ]]
     then
-      HOMEBREW_VERSION="${cached_version}"
+      HOMEBREW_VERSION="${cached_version#intelbrew-}"
     fi
   fi
 
   if [[ -z "${HOMEBREW_VERSION}" ]]
   then
-    HOMEBREW_VERSION="$("${HOMEBREW_GIT}" -C "${HOMEBREW_REPOSITORY}" describe --tags --dirty --abbrev=7 2>/dev/null)"
+    local intelbrew_tag
+    local -a describe_args=(--exclude 'intelbrew-*')
+    if intelbrew_tag="$(latest-intelbrew-tag "${HOMEBREW_REPOSITORY}" HEAD 2>/dev/null)"
+    then
+      describe_args=(--match "${intelbrew_tag}")
+    fi
+    HOMEBREW_VERSION="$("${HOMEBREW_GIT}" -C "${HOMEBREW_REPOSITORY}" describe --tags --dirty --abbrev=7 "${describe_args[@]}" 2>/dev/null)"
+    HOMEBREW_VERSION="${HOMEBREW_VERSION#intelbrew-}"
     if [[ -n "${git_directory_owned_by_user}" ]]
     then
       # Don't output any permissions errors here. The user may not have write

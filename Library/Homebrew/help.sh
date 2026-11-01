@@ -30,7 +30,7 @@ Further help:
   brew commands
   brew help [COMMAND]
   man brew
-  https://docs.brew.sh'
+  https://github.com/giovanninibarbosa/intelbrew/blob/HEAD/docs/Intelbrew.md'
 
 homebrew-help() {
   if [[ -z "$*" ]]

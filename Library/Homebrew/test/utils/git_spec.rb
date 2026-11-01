@@ -1,6 +1,7 @@
 # typed: true
 # frozen_string_literal: true
 
+require "open3"
 require "utils/git"
 
 RSpec.describe Utils::Git do
@@ -55,6 +56,37 @@ RSpec.describe Utils::Git do
   end
 
   # rubocop:enable RSpec/InstanceVariable
+
+  describe ".latest_intelbrew_tag" do
+    it "matches the Bash selector for releases and reachable releases" do
+      %w[99.0.0 intelbrew-7.0.10 intelbrew-8.0.0-rc1 intelbrew-9.0 intelbrew-10.0.0.1 intelbrew-11.x.0].each do |tag|
+        system "git", "-C", HOMEBREW_CACHE, "tag", tag, exception: true
+      end
+      system "git", "-C", HOMEBREW_CACHE, "tag", "intelbrew-7.0.2", file_hash_one, exception: true
+      stdout, stderr, status = Open3.capture3(
+        { "HOMEBREW_GIT" => described_class.path },
+        "/bin/bash", "-c", 'source "$1"; latest-intelbrew-tag "$2"; latest-intelbrew-tag "$2" "$3"',
+        "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s, HOMEBREW_CACHE.to_s, file_hash_one
+      )
+
+      expect([described_class.latest_intelbrew_tag(HOMEBREW_CACHE),
+              described_class.latest_intelbrew_tag(HOMEBREW_CACHE, merged_ref: file_hash_one),
+              stdout, stderr, status.success?])
+        .to eq(["intelbrew-7.0.10", "intelbrew-7.0.2", "intelbrew-7.0.10\nintelbrew-7.0.2\n", "", true])
+    end
+
+    it "matches the Bash selector when only an inherited release exists" do
+      system "git", "-C", HOMEBREW_CACHE, "tag", "99.0.0", exception: true
+      stdout, stderr, status = Open3.capture3(
+        { "HOMEBREW_GIT" => described_class.path },
+        "/bin/bash", "-c", 'source "$1"; latest-intelbrew-tag "$2"',
+        "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s, HOMEBREW_CACHE.to_s
+      )
+
+      expect([described_class.latest_intelbrew_tag(HOMEBREW_CACHE), stdout, stderr, status.success?])
+        .to eq([nil, "", "", false])
+    end
+  end
 
   describe "#cherry_pick!" do
     it "can cherry pick a commit" do

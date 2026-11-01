@@ -5,12 +5,84 @@ require "cmd/update-report"
 require "formula_versions"
 require "yaml"
 require "cmd/shared_examples/args_parse"
+require "cmd/shared_examples/self_update"
 require "cmd/shared_examples/reinstall_pkgconf_if_needed"
 
 RSpec.describe Homebrew::Cmd::UpdateReport do
   it_behaves_like "parseable arguments"
 
   it_behaves_like "reinstall_pkgconf_if_needed"
+
+  describe "fork release reporting" do
+    let(:update_report) { described_class.new([]) }
+
+    include_context "isolated self-update"
+
+    before do
+      setup_self_update
+      ENV["HOMEBREW_UPDATE_BEFORE"] = fixture_git(installation, "rev-parse", "HEAD")
+      fixture_git(installation, "fetch", "--quiet", "origin")
+      fixture_git(installation, "reset", "--hard", "origin/fork-tip")
+      ENV["HOMEBREW_UPDATE_AFTER"] = fixture_git(installation, "rev-parse", "HEAD")
+      ENV["HOMEBREW_UPDATE_TEST"] = "1"
+      ENV["HOMEBREW_NO_INSTALL_FROM_API"] = "1"
+      ENV["HOMEBREW_NO_COLOR"] = "1"
+      stub_const("HOMEBREW_REPOSITORY", installation)
+      allow(update_report).to receive_messages(analytics_message: nil, donation_message: nil,
+                                               install_from_api_message: nil, migrate_gcc_dependents_if_needed: nil,
+                                               migrate_caskroom_caskfiles_to_json: nil,
+                                               link_completions_manpages_and_docs: nil)
+      allow(Homebrew::Reinstall).to receive(:reinstall_pkgconf_if_needed!)
+      allow(Commands).to receive(:rebuild_commands_completion_list)
+      allow(Tap).to receive(:installed).and_return([])
+    end
+
+    after do
+      FileUtils.rm_rf test_root
+    end
+
+    test_each([false, true]) do |tagless|
+      it "reports revision changes without fork releases (tagless: #{tagless})" do
+        if tagless
+          fixture_git(installation, "tag", "--list").lines.each do |tag|
+            fixture_git(installation, "tag", "--delete", tag.chomp)
+          end
+        end
+
+        expect { update_report.run }.to output(<<~EOS).to_stderr_from_any_process
+          ==> Updated Intelbrew from #{ENV.fetch("HOMEBREW_UPDATE_BEFORE")[0, 7]} to #{ENV.fetch("HOMEBREW_UPDATE_AFTER")[0, 7]}.
+          No changes to formulae or casks.
+        EOS
+      end
+    end
+
+    context "with fork releases" do
+      let(:release_tags) { true }
+
+      test_each([["intelbrew-7.0.2", "changelog"], ["intelbrew-6.9.9", "release notes"]]) do |old_tag, description|
+        it "reports normalised fork #{description} at the actual release URL" do
+          Homebrew::Settings.write "latesttag", old_tag
+
+          expect { update_report.run }.to output(include(
+                                                   "to 7.0.10 (#{ENV.fetch("HOMEBREW_UPDATE_AFTER")[0, 7]}).",
+                                                   "The 7.0.10 #{description} can be found at:\n  " \
+                                                   "https://github.com/giovanninibarbosa/intelbrew/releases/tag/intelbrew-7.0.10\n",
+                                                 )).to_stderr_from_any_process
+        end
+      end
+
+      it "ignores a fork release that is not reachable from the updated revision" do
+        fixture_git(installation, "tag", "intelbrew-8.0.0")
+        fixture_git(installation, "reset", "--hard", "intelbrew-7.0.10")
+        ENV["HOMEBREW_UPDATE_AFTER"] = fixture_git(installation, "rev-parse", "HEAD")
+
+        expect { update_report.run }.to output(include(
+                                                 "to 7.0.10 (#{ENV.fetch("HOMEBREW_UPDATE_AFTER")[0, 7]}).",
+                                                 "https://github.com/giovanninibarbosa/intelbrew/releases/tag/intelbrew-7.0.10",
+                                               )).to_stderr_from_any_process
+      end
+    end
+  end
 
   it "links to the donations section" do
     allow(Homebrew::Settings).to receive(:read).with("donationmessage").and_return("false")

@@ -146,6 +146,16 @@ module OS
           return if Homebrew::EnvConfig.developer?
           return if ENV["HOMEBREW_INTEGRATION_TEST"]
 
+          if ::Hardware::CPU.intel? && MacOS.version >= :big_sur && MacOS.version <= :tahoe
+            message = "You are using macOS #{MacOS.version} on Intel x86_64.\n"
+            message << "Apple no longer supports this old macOS version.\n" if MacOS.version.outdated_release?
+            return ::Homebrew::Diagnostic::Finding.new(
+              message,
+              tier:        3,
+              remediation: macos_bottle_remediation(MacOS.version, intel: true),
+            )
+          end
+
           tier = 2
           who = +"We"
           version = MacOS.version

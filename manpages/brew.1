@@ -1757,7 +1757,7 @@ If \fIuser\fP\fB/\fP\fIrepo\fP are provided, display where tap \fIuser\fP\fB/\fP
 .SS "\fB\-\-taps\fP"
 Display the path to Homebrew’s Taps directory\.
 .SS "\fB\-\-version\fP, \fB\-v\fP"
-Print the version numbers of Homebrew, Homebrew/homebrew\-core and Homebrew/homebrew\-cask (if tapped) to standard output\.
+Print the version numbers of Intelbrew, Homebrew/homebrew\-core and Homebrew/homebrew\-cask (if tapped) to standard output\.
 .SH "DEVELOPER COMMANDS"
 .SS "\fBaudit\fP \fR[\fIoptions\fP] \fR[\fIformula\fP|\fIcask\fP \.\.\.]"
 Check \fIformula\fP or \fIcask\fP for Homebrew coding style violations\. This should be run before submitting a new formula or cask\. If no \fIformula\fP or \fIcask\fP are provided, check all locally available formulae and casks and skip style checks\. Will exit with a non\-zero status if any errors are found\.
@@ -2872,7 +2872,7 @@ Use this URL as the download mirror for bottles and their manifests\. If a bottl
 Use this URL as the Homebrew/brew \fBgit\fP(1) remote\.
 .RS
 .P
-\fIDefault:\fP \fBhttps://github\.com/Homebrew/brew\fP\&\.
+\fIDefault:\fP \fBhttps://github\.com/giovanninibarbosa/intelbrew\fP\&\.
 .RE
 .TP
 \fBHOMEBREW_BROWSER\fP
@@ -3309,7 +3309,7 @@ Use this path as the temporary directory for building packages\. Changing this m
 .RE
 .TP
 \fBHOMEBREW_UPDATE_TO_TAG\fP
-If set, always use the latest stable tag (even if developer commands have been run)\.
+If set, update to the latest Intelbrew release tagged \fBintelbrew\-X\.Y\.Z\fP instead of following the remote\[u2019]s default branch\. Fails if no matching release exists\.
 .TP
 \fBHOMEBREW_UPGRADE_GREEDY\fP
 If set, pass \fB\-\-greedy\fP to all cask upgrade commands\.

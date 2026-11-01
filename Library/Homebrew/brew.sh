@@ -540,7 +540,7 @@ then
   export HOMEBREW_RUBY_WARNINGS="-W1"
 fi
 
-export HOMEBREW_BREW_DEFAULT_GIT_REMOTE="https://github.com/Homebrew/brew"
+export HOMEBREW_BREW_DEFAULT_GIT_REMOTE="https://github.com/giovanninibarbosa/intelbrew"
 if [[ -z "${HOMEBREW_BREW_GIT_REMOTE}" ]]
 then
   HOMEBREW_BREW_GIT_REMOTE="${HOMEBREW_BREW_DEFAULT_GIT_REMOTE}"

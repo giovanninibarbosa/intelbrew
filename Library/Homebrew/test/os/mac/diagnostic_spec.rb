@@ -24,23 +24,23 @@ RSpec.describe Homebrew::Diagnostic::Checks do
       )
     end
 
-    it "reports Tier 3 on Intel macOS" do
-      macos_version = MacOSVersion.new("26")
+    it "retains Tier 3 and package limitations on Intel macOS" do
+      macos_version = MacOSVersion.new("26.1")
       allow(Hardware::CPU).to receive(:intel?).and_return(true)
       allow(OS::Mac).to receive_messages(version: macos_version, full_version: macos_version)
       allow(OS::Mac.version).to receive_messages(outdated_release?: false, prerelease?: false)
 
       expect(checks.check_for_unsupported_macos).to have_attributes(
         tier:        3,
-        text:        match("We do not provide support for this platform"),
-        remediation: have_attributes(text: <<~EOS),
-          Homebrew no longer builds bottles for this configuration.
-          Existing bottles may still work, but updated formulae may build from source.
-        EOS
+        text:        eq("You are using macOS 26.1 on Intel x86_64.\n"),
+        remediation: have_attributes(text: include(
+          "Intelbrew retains support for Intel x86_64",
+          "Individual formulae and casks may not support your macOS version.",
+        )),
       )
     end
 
-    it "preserves the remediation for outdated macOS on Intel" do
+    it "retains the old-OS warning and Intelbrew guidance on outdated Intel macOS" do
       macos_version = MacOSVersion.new("13")
       allow(Hardware::CPU).to receive(:intel?).and_return(true)
       allow(OS::Mac).to receive_messages(version: macos_version, full_version: macos_version)
@@ -49,8 +49,24 @@ RSpec.describe Homebrew::Diagnostic::Checks do
       finding = checks.check_for_unsupported_macos
       expect(finding).to have_attributes(
         tier:        3,
+        text:        include("Apple no longer supports this old macOS version."),
+        remediation: have_attributes(text: include("Intelbrew retains support for Intel x86_64")),
+      )
+    end
+
+    it "retains unsupported-version guidance below Intelbrew's minimum macOS version" do
+      macos_version = MacOSVersion.new("10.15")
+      allow(Hardware::CPU).to receive(:intel?).and_return(true)
+      allow(OS::Mac).to receive_messages(version: macos_version, full_version: macos_version)
+
+      expect(checks.check_for_unsupported_macos).to have_attributes(
+        tier:        3,
         text:        include("We (and Apple) do not provide support for this old version."),
-        remediation: have_attributes(text: include("MacPorts")),
+        remediation: have_attributes(text: <<~EOS),
+          Homebrew no longer builds bottles for this configuration.
+          Consider MacPorts, which provides binary packages for this macOS version:
+            https://www.macports.org
+        EOS
       )
     end
   end

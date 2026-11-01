@@ -2783,7 +2783,7 @@ Display the path to Homebrew’s Taps directory.
 
 ### `--version`, `-v`
 
-Print the version numbers of Homebrew, Homebrew/homebrew-core and
+Print the version numbers of Intelbrew, Homebrew/homebrew-core and
 Homebrew/homebrew-cask (if tapped) to standard output.
 
 ## DEVELOPER COMMANDS
@@ -4526,7 +4526,7 @@ For MDM configuration, package restrictions and policy ownership, see:
 
 : Use this URL as the Homebrew/brew `git`(1) remote.
   
-  *Default:* `https://github.com/Homebrew/brew`.
+  *Default:* `https://github.com/giovanninibarbosa/intelbrew`.
 
 `HOMEBREW_BROWSER`
 
@@ -5136,8 +5136,9 @@ For MDM configuration, package restrictions and policy ownership, see:
 
 `HOMEBREW_UPDATE_TO_TAG`
 
-: If set, always use the latest stable tag (even if developer commands have been
-  run).
+: If set, update to the latest Intelbrew release tagged `intelbrew-X.Y.Z`
+  instead of following the remote's default branch. Fails if no matching release
+  exists.
 
 `HOMEBREW_UPGRADE_GREEDY`
 

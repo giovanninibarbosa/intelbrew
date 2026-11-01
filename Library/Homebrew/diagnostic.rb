@@ -113,20 +113,20 @@ module Homebrew
         return if !intel && !version.outdated_release?
         return if version > :tahoe
 
-        remediation = +"Homebrew no longer builds bottles for this configuration.\n"
-        # At the time of writing, MacPorts does not provide a full set of binary packages
-        # for Intel Tahoe:
-        # https://build.macports.org/builders/ports-26_x86_64-builder
-        remediation << if intel && version >= :tahoe
-          <<~EOS
+        if intel && version >= :big_sur
+          return <<~EOS
+            Intelbrew retains support for Intel x86_64 on macOS Big Sur 11 through Tahoe 26.
+            Upstream Homebrew no longer supplies new Intel bottles.
             Existing bottles may still work, but updated formulae may build from source.
-          EOS
-        else
-          <<~EOS
-            Consider MacPorts, which provides binary packages for this macOS version:
-              #{Formatter.url("https://www.macports.org")}
+            Individual formulae and casks may not support your macOS version.
           EOS
         end
+
+        <<~EOS
+          Homebrew no longer builds bottles for this configuration.
+          Consider MacPorts, which provides binary packages for this macOS version:
+            #{Formatter.url("https://www.macports.org")}
+        EOS
       end
 
       # Reports trusted roots and a script to remove them from a certificate bundle.

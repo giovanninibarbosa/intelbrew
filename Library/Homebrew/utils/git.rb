@@ -53,6 +53,18 @@ module Utils
       @git ||= T.let(HOMEBREW_SHIMS_PATH/"shared/git", T.nilable(Pathname))
     end
 
+    # Return the highest version-sorted intelbrew-X.Y.Z tag, optionally
+    # restricted to tags merged into a ref, or nil when no release exists.
+    # Keep in sync with latest-intelbrew-tag in Library/Homebrew/utils/git.sh.
+    sig { params(repository: T.any(Pathname, String), merged_ref: T.nilable(String)).returns(T.nilable(String)) }
+    def self.latest_intelbrew_tag(repository, merged_ref: nil)
+      tag_args = ["tag", "--list", "intelbrew-*", "--sort=-version:refname"]
+      tag_args += ["--merged", merged_ref] if merged_ref
+      Utils.popen_read(git, "-C", repository, *tag_args).lines(chomp: true).find do |tag|
+        tag.match?(/\Aintelbrew-[0-9]+\.[0-9]+\.[0-9]+\z/)
+      end
+    end
+
     sig { params(url: String).returns(T::Boolean) }
     def self.remote_exists?(url)
       return true unless available?

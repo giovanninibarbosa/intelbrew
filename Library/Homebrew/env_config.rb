@@ -759,8 +759,8 @@ module Homebrew
         default:      HOMEBREW_DEFAULT_TEMP,
       },
       HOMEBREW_UPDATE_TO_TAG:                    {
-        description: "If set, always use the latest stable tag (even if developer commands " \
-                     "have been run).",
+        description: "If set, update to the latest Intelbrew release tagged `intelbrew-X.Y.Z` " \
+                     "instead of following the remote's default branch. Fails if no matching release exists.",
         boolean:     :set,
       },
       HOMEBREW_UPGRADE_AUTO_UPDATES_CASKS:       {

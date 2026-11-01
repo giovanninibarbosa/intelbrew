@@ -5,6 +5,7 @@ require "system_command"
 require "utils/output"
 
 require "utils/text"
+require "utils/git"
 
 require "abstract_command"
 require "migrator"
@@ -213,21 +214,20 @@ module Homebrew
 
           old_tag = Settings.read "latesttag"
 
-          new_tag = Utils.popen_read(
-            "git", "-C", HOMEBREW_REPOSITORY, "tag", "--list", "--sort=-version:refname", "*.*"
-          ).lines.fetch(0).chomp
+          new_tag = Utils::Git.latest_intelbrew_tag(HOMEBREW_REPOSITORY, merged_ref: current_revision)
 
-          Settings.write "latesttag", new_tag if new_tag != old_tag
+          Settings.write "latesttag", new_tag if new_tag && new_tag != old_tag
 
-          if new_tag == old_tag
-            ohai "Updated Homebrew from #{shorten_revision(initial_revision)} " \
+          if new_tag.nil? || new_tag == old_tag
+            ohai "Updated Intelbrew from #{shorten_revision(initial_revision)} " \
                  "to #{shorten_revision(current_revision)}."
           elsif old_tag.blank?
-            ohai "Updated Homebrew from #{shorten_revision(initial_revision)} " \
-                 "to #{new_tag} (#{shorten_revision(current_revision)})."
+            ohai "Updated Intelbrew from #{shorten_revision(initial_revision)} " \
+                 "to #{new_tag.delete_prefix("intelbrew-")} (#{shorten_revision(current_revision)})."
           else
-            ohai "Updated Homebrew from #{old_tag} (#{shorten_revision(initial_revision)}) " \
-                 "to #{new_tag} (#{shorten_revision(current_revision)})."
+            ohai "Updated Intelbrew from #{old_tag.delete_prefix("intelbrew-")} " \
+                 "(#{shorten_revision(initial_revision)}) to #{new_tag.delete_prefix("intelbrew-")} " \
+                 "(#{shorten_revision(current_revision)})."
           end
           warn_if_branch_not_updated("Homebrew/brew", GitRepository.new(HOMEBREW_REPOSITORY), current_revision)
         end
@@ -375,19 +375,18 @@ module Homebrew
 
         puts
 
-        new_version = ::Version.new(new_tag)
-        if new_version.major_minor > ::Version.new(old_tag || "0").major_minor
-          puts <<~EOS
-            The #{new_version.major_minor}.0 release notes are available on the Homebrew Blog:
-              #{Formatter.url("https://brew.sh/blog/#{new_version.major_minor}.0")}
-          EOS
+        new_version = ::Version.new(new_tag.delete_prefix("intelbrew-"))
+        release_description = if new_version.major_minor >
+                                 ::Version.new(old_tag&.delete_prefix("intelbrew-") || "0").major_minor
+          "release notes"
+        elsif new_version.patch.to_i.positive?
+          "changelog"
         end
-
-        return if new_version.patch.to_i.zero?
+        return if release_description.nil?
 
         puts <<~EOS
-          The #{new_tag} changelog can be found at:
-            #{Formatter.url("https://github.com/Homebrew/brew/releases/tag/#{new_tag}")}
+          The #{new_version} #{release_description} can be found at:
+            #{Formatter.url("https://github.com/giovanninibarbosa/intelbrew/releases/tag/#{new_tag}")}
         EOS
       end
 

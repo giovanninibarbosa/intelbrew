@@ -14,7 +14,7 @@ module Homebrew
 
       cmd_args do
         description <<~EOS
-          Print the version numbers of Homebrew, Homebrew/homebrew-core and
+          Print the version numbers of Intelbrew, Homebrew/homebrew-core and
           Homebrew/homebrew-cask (if tapped) to standard output.
         EOS
       end

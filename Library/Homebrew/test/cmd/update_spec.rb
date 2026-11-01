@@ -5,15 +5,17 @@ require "open3"
 require "lock_file"
 
 require "cmd/shared_examples/args_parse"
+require "cmd/shared_examples/self_update"
 require "cmd/update"
 
 RSpec.describe Homebrew::Cmd::Update do
+  include_context "isolated self-update"
+
   let(:update_script) { repository_root/"Library/Homebrew/cmd/update.sh" }
   let(:test_root) do
     (repository_root/"tmp").mkpath
-    Pathname(Dir.mktmpdir("brew-update-", repository_root/"tmp"))
+    Pathname(Dir.mktmpdir("brew-update-", (repository_root/"tmp").to_s))
   end
-  let(:repository_root) { HOMEBREW_LIBRARY_PATH.parent.parent }
 
   after do
     FileUtils.rm_rf test_root
@@ -22,22 +24,120 @@ RSpec.describe Homebrew::Cmd::Update do
   it_behaves_like "parseable arguments"
   it_behaves_like "a documented command", "update", shell: true
 
-  def run_update_shell(script, env)
-    # Stop Git finding the enclosing checkout, e.g. after a failed `git init`. Use the
-    # parent as Git ignores a ceiling that is the current directory (e.g. `test_root`).
-    Bundler.with_unbundled_env do
-      Open3.capture3(env.merge("GIT_CEILING_DIRECTORIES" => test_root.dirname.to_s), "/bin/bash", "-c", script)
+  describe "fork self-updates" do
+    before { setup_self_update }
+
+    test_each(["", "--auto-update"]) do |option|
+      it "follows the fork default branch with inherited tags #{option}" do
+        _stdout, stderr, status = run_self_update("update", option)
+
+        expect([status.success?, fixture_git(installation, "rev-parse", "HEAD"),
+                fixture_git(installation, "branch", "--show-current")])
+          .to eq([true, fixture_git(remote, "rev-parse", "HEAD"), "fork-tip"]), stderr
+      end
+
+      it "fails before changing the checkout when fork releases are missing #{option}" do
+        if option.empty?
+          fixture_git(installation, "fetch", "--quiet", "origin")
+          fixture_git(installation, "reset", "--hard", "origin/fork-tip")
+        end
+        original_revision = fixture_git(installation, "rev-parse", "HEAD")
+        (installation/"marker").write "keep me\n"
+        _stdout, stderr, status = run_self_update("update", option, "HOMEBREW_UPDATE_TO_TAG" => "1")
+
+        expect([status.success?, stderr.include?("intelbrew-X.Y.Z"),
+                stderr.include?("HOMEBREW_UPDATE_TO_TAG"), fixture_git(installation, "rev-parse", "HEAD"),
+                (installation/"marker").read])
+          .to eq([false, true, true, original_revision, "keep me\n"])
+      end
+    end
+
+    it "honours an explicit brew remote and a tap's own default branch" do
+      setup_self_update_tap
+      fixture_git(installation, "remote", "set-url", "origin", (test_root/"unavailable").to_s)
+      _stdout, stderr, status = run_self_update(
+        "update", "", "HOMEBREW_BREW_GIT_REMOTE" => remote.to_s,
+                      "HOMEBREW_USER_SET_VARS"   => "HOMEBREW_BREW_GIT_REMOTE"
+      )
+
+      expect([status.success?, fixture_git(installation, "rev-parse", "HEAD"),
+              fixture_git(installation, "remote", "get-url", "origin"),
+              fixture_git(tap, "rev-parse", "HEAD"), fixture_git(tap, "branch", "--show-current")])
+        .to eq([true, fixture_git(remote, "rev-parse", "HEAD"), remote.to_s,
+                fixture_git(tap_remote, "rev-parse", "HEAD"), "tap-track"]), stderr
+    end
+
+    it "refreshes cached version metadata after fetching only tags" do
+      fixture_git(installation, "fetch", "--quiet", "origin")
+      fixture_git(installation, "reset", "--hard", fixture_git(remote, "rev-parse", "HEAD"))
+      revision = fixture_git(installation, "rev-parse", "HEAD")
+      (installation/".git/describe-cache").mkpath
+      (installation/".git/describe-cache"/revision).write "99.0.0\n"
+      fixture_git(remote, "tag", "intelbrew-7.0.10")
+      _stdout, stderr, status = run_self_update("update")
+      stdout, version_stderr, version_status = run_update_shell(
+        <<~SH,
+          source "#{repository_root}/Library/Homebrew/utils/git.sh"
+          HOMEBREW_VERSION=
+          set-homebrew-version-from-git
+          printf '%s' "${HOMEBREW_VERSION}"
+        SH
+        { "HOMEBREW_GIT" => fixture_git_executable, "HOMEBREW_REPOSITORY" => installation.to_s,
+          "HOMEBREW_DEVELOPER" => nil, "HOMEBREW_DEV_CMD_RUN" => nil },
+      )
+
+      expect([status.success?, version_status.success?, version_stderr, stdout,
+              fixture_git(installation, "rev-parse", "HEAD")]).to eq([true, true, "", "7.0.10", revision]), stderr
+    end
+
+    context "with fork releases" do
+      let(:release_tags) { true }
+
+      it "updates to the highest valid namespaced release when explicitly requested" do
+        _stdout, stderr, status = run_self_update("update", "", "HOMEBREW_UPDATE_TO_TAG" => "1")
+
+        expect([status.success?, stderr.include?("fatal:"), fixture_git(installation, "rev-parse", "HEAD"),
+                fixture_git(installation, "branch", "--show-current")])
+          .to eq([true, false, fixture_git(remote, "rev-parse", "intelbrew-7.0.10"), "stable"]), stderr
+      end
     end
   end
 
-  def setup_update_utils
-    (test_root/"Library/Homebrew/utils").mkpath
-    FileUtils.ln_s repository_root/"Library/Homebrew/utils.sh", test_root/"Library/Homebrew/utils.sh"
-    %w[api cmd curl executables formatter lock tool tty].each do |name|
-      FileUtils.ln_s repository_root/"Library/Homebrew/utils/#{name}.sh",
-                     test_root/"Library/Homebrew/utils/#{name}.sh"
-    end
-    FileUtils.ln_s repository_root/"Library/Homebrew/utils/lock_sh", test_root/"Library/Homebrew/utils/lock_sh"
+  it "reports the original revision when switching from stable to the fork branch" do
+    setup_self_update
+    fixture_git(installation, "branch", "-m", "stable")
+    original_revision = fixture_git(installation, "rev-parse", "HEAD")
+    stdout, stderr, status = run_self_update("update")
+
+    expect([status.success?, stdout])
+      .to eq([true, "before=#{original_revision} after=#{fixture_git(remote, "rev-parse", "HEAD")}\n"]), stderr
+  end
+
+  it "fails before bootstrapping a checkout without the requested fork release" do
+    setup_self_update
+    FileUtils.rm_rf installation/".git"
+    (installation/"marker").write "keep me\n"
+    (installation/"tracked").write "local changes\n"
+    _stdout, stderr, status = run_self_update("update", "", "HOMEBREW_UPDATE_TO_TAG"   => "1",
+                                                            "HOMEBREW_BREW_GIT_REMOTE" => remote.to_s)
+
+    expect([status.success?, stderr.include?("intelbrew-X.Y.Z"), stderr.include?("HOMEBREW_UPDATE_TO_TAG"),
+            (installation/"marker").read, (installation/"tracked").read])
+      .to eq([false, true, true, "keep me\n", "local changes\n"])
+  end
+
+  it "refuses release updates before initialising an incomplete core checkout" do
+    setup_self_update
+    core = installation/"Library/Taps/homebrew/homebrew-core"
+    core.mkpath
+    (core/"marker").write "keep me\n"
+    (core/"tracked").write "local core changes\n"
+    _stdout, stderr, status = run_self_update("update", "", "HOMEBREW_UPDATE_TO_TAG"   => "1",
+                                                            "HOMEBREW_CORE_GIT_REMOTE" => remote.to_s)
+
+    expect([status.success?, stderr.include?("homebrew/core"), stderr.include?("Unset HOMEBREW_UPDATE_TO_TAG"),
+            (core/".git").exist?, (core/"marker").read, (core/"tracked").read])
+      .to eq([false, true, true, false, "keep me\n", "local core changes\n"])
   end
 
   it "stops Git from finding the enclosing repository" do
@@ -557,13 +657,14 @@ RSpec.describe Homebrew::Cmd::Update do
         homebrew-update --auto-update
       SH
       {
-        "HOMEBREW_BREW_GIT_REMOTE"     => "https://github.com/Homebrew/brew",
-        "HOMEBREW_CACHE"               => (test_root/"cache").to_s,
-        "HOMEBREW_CELLAR"              => (test_root/"cellar").to_s,
-        "HOMEBREW_LIBRARY"             => (test_root/"Library").to_s,
-        "HOMEBREW_NO_INSTALL_FROM_API" => "1",
-        "HOMEBREW_PREFIX"              => (test_root/"prefix").to_s,
-        "HOMEBREW_REPOSITORY"          => (test_root/"repository").to_s,
+        "HOMEBREW_BREW_DEFAULT_GIT_REMOTE" => "https://github.com/Homebrew/brew",
+        "HOMEBREW_BREW_GIT_REMOTE"         => "https://github.com/Homebrew/brew",
+        "HOMEBREW_CACHE"                   => (test_root/"cache").to_s,
+        "HOMEBREW_CELLAR"                  => (test_root/"cellar").to_s,
+        "HOMEBREW_LIBRARY"                 => (test_root/"Library").to_s,
+        "HOMEBREW_NO_INSTALL_FROM_API"     => "1",
+        "HOMEBREW_PREFIX"                  => (test_root/"prefix").to_s,
+        "HOMEBREW_REPOSITORY"              => (test_root/"repository").to_s,
       },
     )
 
@@ -608,13 +709,14 @@ RSpec.describe Homebrew::Cmd::Update do
         homebrew-update --auto-update
       SH
       {
-        "HOMEBREW_BREW_GIT_REMOTE"     => "https://github.com/Homebrew/brew",
-        "HOMEBREW_CACHE"               => (test_root/"cache").to_s,
-        "HOMEBREW_CELLAR"              => (test_root/"cellar").to_s,
-        "HOMEBREW_LIBRARY"             => (test_root/"Library").to_s,
-        "HOMEBREW_NO_INSTALL_FROM_API" => nil,
-        "HOMEBREW_PREFIX"              => (test_root/"prefix").to_s,
-        "HOMEBREW_REPOSITORY"          => (test_root/"repository").to_s,
+        "HOMEBREW_BREW_DEFAULT_GIT_REMOTE" => "https://github.com/Homebrew/brew",
+        "HOMEBREW_BREW_GIT_REMOTE"         => "https://github.com/Homebrew/brew",
+        "HOMEBREW_CACHE"                   => (test_root/"cache").to_s,
+        "HOMEBREW_CELLAR"                  => (test_root/"cellar").to_s,
+        "HOMEBREW_LIBRARY"                 => (test_root/"Library").to_s,
+        "HOMEBREW_NO_INSTALL_FROM_API"     => nil,
+        "HOMEBREW_PREFIX"                  => (test_root/"prefix").to_s,
+        "HOMEBREW_REPOSITORY"              => (test_root/"repository").to_s,
       },
     )
 
@@ -679,7 +781,7 @@ RSpec.describe Homebrew::Cmd::Update do
           for url in "$@"; do :; done
 
           case "${url}" in
-            "https://api.github.com/repos/Homebrew/brew/tags" | "https://api.github.com/repos/old/homebrew-foo/commits/main")
+            "https://api.github.com/repos/Homebrew/brew/commits/main" | "https://api.github.com/repos/old/homebrew-foo/commits/main")
               printf '304 %s' "${url}"
               ;;
             "https://api.github.com/repos/Homebrew/brew" | "https://api.github.com/repos/old/homebrew-foo")
@@ -788,7 +890,7 @@ RSpec.describe Homebrew::Cmd::Update do
           for url in "$@"; do :; done
 
           case "${url}" in
-            "https://api.github.com/repos/Homebrew/brew/tags")
+            "https://api.github.com/repos/Homebrew/brew/commits/main")
               printf '304 %s' "${url}"
               ;;
             "https://api.github.com/repos/old/homebrew-foo/commits/main")

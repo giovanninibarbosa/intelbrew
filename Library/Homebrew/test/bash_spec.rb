@@ -37,6 +37,52 @@ RSpec.describe "Bash" do
     end
   end
 
+  describe "help" do
+    it "documents installation and directs users to the Intelbrew guide" do
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-c", 'source "$1"; homebrew-help --help',
+        "bash", (HOMEBREW_LIBRARY_PATH/"help.sh").to_s
+      )
+
+      expect([stdout, stderr, status.success?]).to match([
+        include("brew install FORMULA|CASK...",
+                "https://github.com/giovanninibarbosa/intelbrew/blob/HEAD/docs/Intelbrew.md"),
+        "", true
+      ])
+    end
+  end
+
+  describe "bootstrap Git remotes" do
+    test_each([nil, "https://example.com/custom/brew"]) do |override|
+      it "exports the brew remote with #{override || "the fork default"}" do
+        stdout, stderr, status = Open3.capture3(
+          { "HOMEBREW_LIBRARY" => HOMEBREW_LIBRARY_PATH.parent.to_s,
+            "HOMEBREW_REPOSITORY" => mktmpdir.to_s, "HOMEBREW_BREW_GIT_REMOTE" => override,
+            "HOMEBREW_NO_AUTO_UPDATE" => "1", "HOMEBREW_DEVELOPER" => "1" },
+          "/bin/bash", "-c", <<~'BASH'
+            source() {
+              case "$1" in
+                */utils/analytics.sh)
+                  printf '%s\n' "${HOMEBREW_BREW_DEFAULT_GIT_REMOTE}" "${HOMEBREW_BREW_GIT_REMOTE}" \
+                    "${HOMEBREW_CORE_GIT_REMOTE}"
+                  exit 0
+                  ;;
+                *) builtin source "$@" ;;
+              esac
+            }
+            source "${HOMEBREW_LIBRARY}/Homebrew/brew.sh" config
+          BASH
+        )
+
+        expect([status.success?, stdout, stderr]).to eq(
+          [true, "https://github.com/giovanninibarbosa/intelbrew\n" \
+                 "#{override || "https://github.com/giovanninibarbosa/intelbrew"}\n" \
+                 "https://github.com/Homebrew/homebrew-core\n", ""],
+        )
+      end
+    end
+  end
+
   test_each(%w[formulae casks]) do |command|
     describe "brew #{command}" do
       before do
@@ -134,6 +180,110 @@ RSpec.describe "Bash" do
 
       expect([stdout, stderr, status.success?])
         .to eq(["C\nC\nC.UTF-8\nunset\nunset\nunset\n", "", true])
+    end
+  end
+
+  describe "Git release metadata" do
+    let(:repository) { mktmpdir }
+    let(:revision) { Utils.safe_popen_read("git", "-C", repository, "rev-parse", "HEAD").chomp }
+    let(:version_script) do
+      <<~BASH
+        source "$1"
+        HOMEBREW_VERSION=
+        set-homebrew-version-from-git
+        printf "%s" "${HOMEBREW_VERSION}"
+      BASH
+    end
+
+    before do
+      system "git", "-C", repository, "init", "--quiet", exception: true
+      (repository/"tracked").write "initial\n"
+      system "git", "-C", repository, "add", "tracked", exception: true
+      system "git", "-C", repository, "-c", "user.name=Homebrew Tests", "-c", "user.email=tests@brew.sh",
+             "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Initial commit", exception: true
+      %w[99.0.0 intelbrew-8.0.0-rc1 intelbrew-9.0 intelbrew-10.0.0.1 intelbrew-11.x.0].each do |tag|
+        system "git", "-C", repository, "tag", tag, exception: true
+      end
+      ENV["HOMEBREW_GIT"] = "git"
+      ENV["HOMEBREW_REPOSITORY"] = repository.to_s
+    end
+
+    it "selects the highest valid Intelbrew release by version" do
+      %w[intelbrew-7.0.2 intelbrew-7.0.10].each do |tag|
+        system "git", "-C", repository, "tag", tag, exception: true
+      end
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-o", "pipefail", "-c", 'source "$1"; latest-intelbrew-tag "$2"',
+        "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s, repository.to_s
+      )
+
+      expect([stdout, stderr, status.success?]).to eq(["intelbrew-7.0.10\n", "", true])
+    end
+
+    it "fails without output when no valid Intelbrew release exists" do
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-c", 'source "$1"; latest-intelbrew-tag "$2"',
+        "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s, repository.to_s
+      )
+
+      expect([stdout, stderr, status.success?]).to eq(["", "", false])
+    end
+
+    it "normalises a freshly described Intelbrew release and caches it" do
+      system "git", "-C", repository, "tag", "intelbrew-7.0.10", exception: true
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-c", version_script, "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s
+      )
+
+      expect([stdout, stderr, status.success?, (repository/".git/describe-cache"/revision).read])
+        .to eq(["7.0.10", "", true, "7.0.10\n"])
+    end
+
+    it "normalises a previously cached Intelbrew release" do
+      (repository/".git/describe-cache").mkpath
+      (repository/".git/describe-cache"/revision).write "intelbrew-7.0.10\n"
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-c", version_script, "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s
+      )
+
+      expect([stdout, stderr, status.success?]).to eq(["7.0.10", "", true])
+    end
+
+    it "uses a reachable fork release when a newer release is unreachable" do
+      system "git", "-C", repository, "tag", "intelbrew-7.0.10", exception: true
+      system "git", "-C", repository, "-c", "user.name=Homebrew Tests", "-c", "user.email=tests@brew.sh",
+             "-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "Other branch", exception: true
+      system "git", "-C", repository, "tag", "intelbrew-8.0.0", exception: true
+      system "git", "-C", repository, "reset", "--quiet", "--hard", "HEAD~", exception: true
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-c", version_script, "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s
+      )
+
+      expect([stdout, stderr, status.success?]).to eq(["7.0.10", "", true])
+    end
+
+    it "preserves a dirty Intelbrew development suffix" do
+      system "git", "-C", repository, "tag", "intelbrew-7.0.10", "HEAD", exception: true
+      system "git", "-C", repository, "-c", "user.name=Homebrew Tests", "-c", "user.email=tests@brew.sh",
+             "-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "Development", exception: true
+      (repository/"tracked").write "dirty\n"
+      ENV["HOMEBREW_DEVELOPER"] = "1"
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-c", version_script, "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s
+      )
+
+      expect([stdout, stderr, status.success?]).to eq(["7.0.10-1-g#{revision[0, 7]}-dirty", "", true])
+    end
+
+    it "preserves an inherited upstream development version before the first fork release" do
+      system "git", "-C", repository, "-c", "user.name=Homebrew Tests", "-c", "user.email=tests@brew.sh",
+             "-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "Development", exception: true
+      system "git", "-C", repository, "tag", "intelbrew-12.0.0-beta", exception: true
+      stdout, stderr, status = Open3.capture3(
+        "/bin/bash", "-c", version_script, "bash", (HOMEBREW_LIBRARY_PATH/"utils/git.sh").to_s
+      )
+
+      expect([stdout, stderr, status.success?]).to eq(["99.0.0-1-g#{revision[0, 7]}", "", true])
     end
   end
 

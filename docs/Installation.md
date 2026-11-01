@@ -4,6 +4,10 @@ last_review_date: "2026-09-21"
 
 # Installation
 
+> **Intelbrew fork policy:** For an existing Intel installation, follow the [Intelbrew operations guide](Intelbrew.md), including its migration and rollback steps.
+> Intelbrew targets Intel x86_64 macOS 11–26 and retains `/usr/local`; it does not provide a fresh installer in this milestone.
+> The remaining text describes upstream Homebrew installation policy and installers, including the Apple Silicon-only `.pkg`, rather than Intelbrew installation instructions.
+
 Instructions for a supported install of Homebrew are on the [homepage](https://brew.sh/).
 
 The script installs Homebrew to its default prefix (`/opt/homebrew` for Apple Silicon and `/home/linuxbrew/.linuxbrew` for Linux) so that [you don’t need *sudo* after Homebrew's initial installation](FAQ.md#why-does-homebrew-say-sudo-is-bad) when you install formulae.

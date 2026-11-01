@@ -1,113 +1,49 @@
-# 🍺 Homebrew
+# 🍺 Intelbrew
 
-[![Latest GitHub release](https://img.shields.io/github/release/Homebrew/brew.svg)](https://github.com/Homebrew/brew/releases)
-[![BSD-2-Clause License](https://img.shields.io/github/license/Homebrew/brew)](https://github.com/Homebrew/brew/blob/HEAD/LICENSE.txt)
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/homebrew?label=GitHub%20Sponsors)](https://github.com/sponsors/Homebrew)
-[![Open Collective backers and sponsors](https://img.shields.io/opencollective/all/homebrew?label=Open%20Collective)](https://opencollective.com/homebrew)
+Intelbrew is an independently maintained [Homebrew](https://github.com/Homebrew/brew) fork for Intel Macs.
+Keep using `brew`, existing packages and the `/usr/local` installation layout.
+Intel x86_64 macOS Big Sur 11 through Tahoe 26 is the runtime compatibility target; it is not a claim of testing on every release.
 
-See [Homebrew's homepage at `brew.sh`](https://brew.sh) for installation instructions, what homebrew does, packages, `brew bundle` and more.
+Start with the [Intelbrew operations guide](docs/Intelbrew.md) for requirements, existing-installation migration, rollback and maintenance.
+Fresh installation automation, an Intel bottle service and a separate portable Ruby distribution are deferred.
+The upstream Homebrew installer and Apple Silicon `.pkg` are not Intelbrew installers.
 
-<img src="https://brew.sh/assets/img/brew-install.gif" alt="Homebrew install demo" width="580" height="424">
+## Documentation
 
-## 💸 Donations
+Read the [operations guide](docs/Intelbrew.md), [command manual](docs/Manpage.md) and [troubleshooting checklist](docs/Troubleshooting.md).
+The retained [installation](docs/Installation.md) and [support tiers](docs/Support-Tiers.md) describe upstream Homebrew policy, with visible fork notices.
 
-Homebrew is a non-profit project run entirely by volunteers, not employees.
-We need your funds to pay for software, hardware and hosting around continuous integration and future improvements to the project.
-Every donation will be spent on making Homebrew better for our users.
+Normal updates follow this fork's default branch.
+Explicit release mode selects only `intelbrew-X.Y.Z` tags and fails before the first such release.
+See the [project repository](https://github.com/giovanninibarbosa/intelbrew) for changes.
 
-Please consider a regular donation through [GitHub Sponsors](https://github.com/sponsors/Homebrew), [Open Collective](https://opencollective.com/homebrew) or [Patreon](https://www.patreon.com/homebrew).
-Read about [sponsoring Homebrew](https://docs.brew.sh/Sponsoring-Homebrew).
-Homebrew is fiscally hosted by the [Open Source Collective](https://opencollective.com/opensource).
+## Packages
 
-## 📚 Documentation
+Intelbrew initially uses Homebrew's [formulae, casks and package metadata](https://formulae.brew.sh), API and available bottles.
+Upstream Homebrew no longer builds new Intel bottles.
+Existing bottles may work; updated formulae may require source builds, compatible developer tools and dependencies.
+A formula, cask or third-party project may independently drop Intel or older macOS support.
+Runtime maintenance does not restore package coverage or change upstream's Tier 3 policy.
 
-Read the Homebrew manual with [`man brew`](https://docs.brew.sh/Manpage).
+Read how Homebrew uses [anonymous analytics](docs/Analytics.md).
+The inherited `HOMEBREW_*` settings and package interfaces remain compatible.
 
-Read [installation](https://docs.brew.sh/Installation),
-[troubleshooting](https://docs.brew.sh/Troubleshooting),
-[contribution](https://github.com/Homebrew/brew/blob/HEAD/docs/How-To-Open-a-Homebrew-Pull-Request.md)
-including the [FAQ](https://docs.brew.sh/FAQ) on [`docs.brew.sh`](https://docs.brew.sh/).
+## Help and contributions
 
-Read the [Homebrew Blog](https://brew.sh/blog/) for release notes, project updates and announcements.
+Run `brew update`, read `brew doctor` and consult the [operations guide](docs/Intelbrew.md#help-and-maintenance).
+Intelbrew runtime problems belong with this fork, rather than upstream Homebrew maintainers.
+The maintainer must enable GitHub Issues before the fork's issue-reporting entry points can accept reports.
+Issues are disabled as of 1 November 2026; use the [project repository](https://github.com/giovanninibarbosa/intelbrew) to check current availability.
 
-## 📦 Packages
-Find [formulae](https://formulae.brew.sh/formula/), [casks](https://formulae.brew.sh/cask/), dependencies, versions and package metadata on [`formulae.brew.sh`](https://formulae.brew.sh).
+Contributions should follow the [contribution guide](CONTRIBUTING.md), target this fork and preserve Intel compatibility.
+Package changes still belong with the relevant tap's maintainers.
 
-View anonymised install, build and operating system usage data at [`formulae.brew.sh/analytics`](https://formulae.brew.sh/analytics/).
-Read how Homebrew uses [Anonymous Analytics](https://docs.brew.sh/Analytics).
+## Attribution and licences
 
-## 🔧 Get Help
+Intelbrew derives from Homebrew and retains its copyright notices and licences.
+Homebrew was originally created by [Max Howell](https://github.com/mxcl) and developed by [Homebrew's contributors](https://github.com/Homebrew/brew/graphs/contributors).
+Homebrew's governance, sponsors, donations, social accounts and security-reporting arrangements belong to the upstream project; they do not represent Intelbrew.
+See [upstream Homebrew](https://github.com/Homebrew/brew) for that project's organisation and support information.
 
-First, please run `brew update` and run (and **read**) `brew doctor`.
-
-Second, read the [Troubleshooting Checklist](https://docs.brew.sh/Troubleshooting).
-
-**If you don't read these it will take us far longer to help you with your problem.**
-
-After this, if you still need help, please ask in
-[Homebrew/discussions](https://github.com/orgs/Homebrew/discussions)
-or follow (and **read**) the
-[Homebrew/brew new issue chooser](https://github.com/Homebrew/brew/issues/new/choose).
-
-## 💬 Social
-
-Follow Homebrew on [Mastodon](https://fosstodon.org/@homebrew),
-[Bluesky](https://bsky.app/profile/brew.sh),
-[𝕏 (Twitter)](https://x.com/MacHomebrew) or subscribe to the
-[newsletter](https://buttondown.email/homebrew).
-
-## 🤝 Contributing
-
-We'd love you to join us and >10,000 others by contributing to Homebrew!
-
-First, please read our [Contribution Guide](CONTRIBUTING.md) and [Code of Conduct](https://github.com/Homebrew/.github/blob/HEAD/CODE_OF_CONDUCT.md#code-of-conduct).
-
-A good starting point for contributing is:
-
-- `brew tap --force homebrew/core` or `brew tap --force homebrew/cask` (depending on whether you'd rather work on formulae or casks)
-- perform a strict audit on a package you use e.g. `brew audit --strict ffmpeg` for FFmpeg
-- if no warnings, run `brew audit --strict` to run on all packages and pick one to fix
-- read through the warnings and fix them until `brew audit --strict <package>` shows no results
-- [submit a pull request](https://docs.brew.sh/How-To-Open-a-Homebrew-Pull-Request) with your fixes
-
-Alternatively, for something more substantial, check out one of the open issues in
-[Homebrew/brew](https://github.com/homebrew/brew/issues),
-[Homebrew/homebrew-core](https://github.com/homebrew/homebrew-core/issues) or
-[Homebrew/homebrew-cask](https://github.com/homebrew/homebrew-cask/issues).
-
-If you've had inspiration for a new feature or bug fix: we don't need you to open an issue first, just [open a pull request](https://docs.brew.sh/How-To-Open-a-Homebrew-Pull-Request) with your implementation and we'll review it.
-
-Good luck!
-
-## 🔐 Security
-
-Please see [our security policy](https://github.com/Homebrew/.github/blob/HEAD/SECURITY.md) for how to report security issues and what is in scope.
-
-## 👥 Who We Are
-
-Homebrew's [Project Leader](https://docs.brew.sh/Homebrew-Governance#project-leader) is [Mike McQuaid](https://github.com/MikeMcQuaid).
-
-Homebrew's [Lead Maintainers](https://docs.brew.sh/Homebrew-Governance#lead-maintainer) are [Bevan Kay](https://github.com/bevanjkay), [Carlo Cabrera](https://github.com/carlocab), [Issy Long](https://github.com/issyl0), [Justin Krehel](https://github.com/krehel), [Michael Cho](https://github.com/cho-m), [Mike McQuaid](https://github.com/MikeMcQuaid), [Nanda H Krishna](https://github.com/nandahkrishna), [Patrick Linnane](https://github.com/p-linnane), [Rui Chen](https://github.com/chenrui333), [Ruoyu Zhong](https://github.com/ZhongRuoyu), [Sam Ford](https://github.com/samford) and [Sean Molenaar](https://github.com/SMillerDev).
-
-Homebrew's other Maintainers are [Andrew Nesbitt](https://github.com/andrew), [Anton Melnikov](https://github.com/botantony), [Bo Anderson](https://github.com/Bo98), [Branch Vincent](https://github.com/branchv), [Caleb Xu](https://github.com/alebcay), [Daeho Ro](https://github.com/daeho-ro), [Douglas Eichelberger](https://github.com/dduugg), [Dustin Rodrigues](https://github.com/dtrodrigues), [FX Coudert](https://github.com/fxcoudert), [Harald Nordgren](https://github.com/HaraldNordgren), [Klaus Hipp](https://github.com/khipp), [Markus Reiter](https://github.com/reitermarkus), [Michka Popoff](https://github.com/iMichka), [Štefan Baebler](https://github.com/stefanb), [Thierry Moisan](https://github.com/Moisan) and [William Woodruff](https://github.com/woodruffw).
-
-Homebrew was originally created by [Max Howell](https://github.com/mxcl).
-
-## 📜 License
-
-Code is under the [BSD 2-clause "Simplified" License](LICENSE.txt).
-Documentation is under the [Creative Commons Attribution license](https://creativecommons.org/licenses/by/4.0/).
-
-## 💛 Sponsors
-
-Homebrew is generously supported by:
-
-- [GitHub](https://github.com/github), Randy Reddig, Joshua Baer, Codecademy, b.well, Workbrew, Gusto, thanks.dev, ZachryWilsn, Naveen Nathan, mikadelbert, chellesand, Aagam Dalal, thanvirmohamed, awppatel, EbbetG and [many others](https://github.com/sponsors/Homebrew#sponsors) via [GitHub Sponsors](https://github.com/sponsors/Homebrew).
-- [Open Broadcaster Software](https://opencollective.com/obsproject), [Thinkst Canary](https://opencollective.com/thinkst-canary), Airbnb, Cybozu, WonderProxy, mkvirtasant, Gabor Nadai, PlanetScale, Richard Moats, Ajimah, David Ball, emushack, Ian-Retired, Cameron, J-Swift, Josh E., William Hern and [many others](https://opencollective.com/homebrew/transactions?kind=ADDED_FUNDS&kind=CONTRIBUTION) via [Open Collective](https://opencollective.com/homebrew).
-- [many others](https://www.patreon.com/homebrew) via [Patreon](https://www.patreon.com/homebrew).
-
-<!-- release-sponsors -->
-[![GitHub](https://github.com/github.png?size=64)](https://github.com/github)
-[![Open Broadcaster Software](https://images.opencollective.com/obsproject/64068a5/logo/64.png)](https://opencollective.com/obsproject)
-[![Thinkst Canary](https://images.opencollective.com/thinkst-canary/ed1556c/avatar/64.png)](https://opencollective.com/thinkst-canary)
-<!-- /release-sponsors -->
+Code is under the [BSD 2-clause “Simplified” Licence](LICENSE.txt).
+Documentation is under the [Creative Commons Attribution licence](https://creativecommons.org/licenses/by/4.0/).

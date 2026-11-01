@@ -4,6 +4,10 @@ last_review_date: "2026-09-21"
 
 # Support Tiers
 
+> **Intelbrew fork policy:** Intelbrew targets the Intel x86_64 macOS 11–26 runtime independently of upstream Homebrew's package support tiers.
+> See the [Intelbrew operations guide](Intelbrew.md) for actual coverage and package limitations.
+> The remaining tiers and future removal timeline describe upstream Homebrew policy; Intelbrew does not claim Tier 1 support or restored Intel bottles.
+
 Homebrew defines three support tiers to help users understand how well Homebrew is expected to work on different systems.
 
 These tiers describe the level of compatibility, automation coverage and community support that the project actively maintains. They also set expectations for how we handle issues, pull requests and regressions.

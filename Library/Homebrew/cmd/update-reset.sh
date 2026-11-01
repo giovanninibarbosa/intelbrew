@@ -26,7 +26,8 @@ git() {
 homebrew-update-reset() {
   local option
   local DIR
-  local -a REPOS=()
+  local latest_git_tag
+  local -a REPOS=() FETCHED_REPOS=()
 
   for option in "$@"
   do
@@ -77,17 +78,24 @@ homebrew-update-reset() {
     git -C "${DIR}" fetch --force --tags origin
     git -C "${DIR}" remote set-head origin --auto >/dev/null
     echo
+    FETCHED_REPOS+=("${DIR}")
+    if [[ "${DIR}" == "${HOMEBREW_REPOSITORY}" && -n "${HOMEBREW_UPDATE_TO_TAG}" ]] &&
+       ! latest_git_tag="$(latest-intelbrew-tag "${DIR}")"
+    then
+      odie <<EOS
+No Intelbrew release tags (intelbrew-X.Y.Z) found.
+Unset HOMEBREW_UPDATE_TO_TAG to follow the default branch.
+EOS
+    fi
+  done
 
+  for DIR in "${FETCHED_REPOS[@]}"
+  do
     ohai "Resetting ${DIR}..."
     # HOMEBREW_* variables here may all be set by bin/brew or the user
     # shellcheck disable=SC2154
-    if [[ "${DIR}" == "${HOMEBREW_REPOSITORY}" &&
-       (-n "${HOMEBREW_UPDATE_TO_TAG}" ||
-       (-z "${HOMEBREW_DEVELOPER}" && -z "${HOMEBREW_DEV_CMD_RUN}")) ]]
+    if [[ "${DIR}" == "${HOMEBREW_REPOSITORY}" && -n "${HOMEBREW_UPDATE_TO_TAG}" ]]
     then
-      local latest_git_tag
-      latest_git_tag="$(git -C "${DIR}" tag --list --sort="-version:refname" | head -n1)"
-
       git -C "${DIR}" checkout --force -B stable "refs/tags/${latest_git_tag}"
     else
       head="$(git -C "${DIR}" symbolic-ref refs/remotes/origin/HEAD)"

@@ -85,6 +85,17 @@ git() {
   "${GIT_EXECUTABLE}" -c core.hooksPath=/dev/null "$@"
 }
 
+check_update_to_tag() {
+  if [[ -n "${HOMEBREW_UPDATE_TO_TAG}" ]] &&
+     ! latest-intelbrew-tag "${HOMEBREW_REPOSITORY}" >/dev/null
+  then
+    odie <<EOS
+No Intelbrew release tags (intelbrew-X.Y.Z) found.
+Unset HOMEBREW_UPDATE_TO_TAG to follow the default branch.
+EOS
+  fi
+}
+
 git_init_if_necessary() {
   safe_cd "${HOMEBREW_REPOSITORY}"
   if [[ ! -d ".git" ]]
@@ -103,6 +114,7 @@ git_init_if_necessary() {
     git config fetch.prune true
     git fetch --force --tags origin
     git remote set-head origin --auto >/dev/null
+    check_update_to_tag
     git reset --hard origin/HEAD
     SKIP_FETCH_BREW_REPOSITORY=1
     set +e
@@ -261,10 +273,7 @@ merge_or_rebase() {
 
   if [[ "${DIR}" == "${HOMEBREW_REPOSITORY}" && -n "${HOMEBREW_UPDATE_TO_TAG}" ]]
   then
-    UPSTREAM_TAG="$(
-      git tag --list --sort=-version:refname |
-        grep -m 1 '^[0-9]*\.[0-9]*\.[0-9]*$'
-    )"
+    UPSTREAM_TAG="$(latest-intelbrew-tag "${DIR}")" || return
   else
     UPSTREAM_TAG=""
   fi
@@ -301,6 +310,9 @@ EOS
     STASHED="1"
   fi
 
+  INITIAL_REVISION="$(read_current_revision)"
+  export HOMEBREW_UPDATE_BEFORE"${TAP_VAR}"="${INITIAL_REVISION}"
+
   INITIAL_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null)"
   MAIN_MIGRATION_REQUIRED=
   if [[ "${INITIAL_BRANCH}" == "master" &&
@@ -325,15 +337,15 @@ EOS
       then
         local detected_upstream_branch
         detected_upstream_branch="$(upstream_branch)"
-        git branch --force "${detected_upstream_branch}" "origin/${detected_upstream_branch}" "${QUIET_ARGS[@]}"
+        if [[ "${detected_upstream_branch}" != "${INITIAL_BRANCH}" ]]
+        then
+          git branch --force "${detected_upstream_branch}" "origin/${detected_upstream_branch}" "${QUIET_ARGS[@]}"
+        fi
       fi
 
       git checkout --force -B "${UPSTREAM_BRANCH}" "${REMOTE_REF}" "${QUIET_ARGS[@]}"
     fi
   fi
-
-  INITIAL_REVISION="$(read_current_revision)"
-  export HOMEBREW_UPDATE_BEFORE"${TAP_VAR}"="${INITIAL_REVISION}"
 
   # ensure we don't munge line endings on checkout
   git config --bool core.autocrlf false
@@ -592,14 +604,20 @@ homebrew-update() {
 
   homebrew-command-enable-debug
 
-  if [[ -z "${HOMEBREW_UPDATE_TO_TAG}" ]]
+  if [[ -z "${HOMEBREW_UPDATE_TO_TAG}" &&
+     (-n "${HOMEBREW_DEVELOPER}" || -n "${HOMEBREW_DEV_CMD_RUN}") ]]
   then
-    if [[ -n "${HOMEBREW_DEVELOPER}" || -n "${HOMEBREW_DEV_CMD_RUN}" ]]
-    then
-      export HOMEBREW_NO_UPDATE_CLEANUP="1"
-    else
-      export HOMEBREW_UPDATE_TO_TAG="1"
-    fi
+    export HOMEBREW_NO_UPDATE_CLEANUP="1"
+  fi
+
+  if [[ -n "${HOMEBREW_UPDATE_TO_TAG}" && -d "${HOMEBREW_CORE_REPOSITORY}" &&
+        ! -d "${HOMEBREW_CORE_REPOSITORY}/.git" ]]
+  then
+    odie <<EOS
+Cannot initialise homebrew/core while HOMEBREW_UPDATE_TO_TAG is set.
+Unset HOMEBREW_UPDATE_TO_TAG and run \`brew update\` to initialise core,
+then retry with release updates enabled.
+EOS
   fi
 
   # check permissions
@@ -1028,6 +1046,9 @@ EOS
   wait
   trap - SIGINT
 
+  check_update_to_tag
+  rm -rf "${HOMEBREW_REPOSITORY}/.git/describe-cache"
+
   if [[ -f "${missing_remote_ref_dirs_file}" ]]
   then
     HOMEBREW_MISSING_REMOTE_REF_DIRS="$(cat "${missing_remote_ref_dirs_file}")"
@@ -1075,6 +1096,7 @@ EOS
     then
       simulate_from_current_branch "${DIR}" "${TAP_VAR}" "${UPSTREAM_BRANCH}" "${CURRENT_REVISION}"
     elif [[ -z "${HOMEBREW_UPDATE_FORCE}" &&
+            ("${DIR}" != "${HOMEBREW_REPOSITORY}" || -z "${HOMEBREW_UPDATE_TO_TAG}") &&
             "${PREFETCH_REVISION}" == "${POSTFETCH_REVISION}" &&
             "${CURRENT_REVISION}" == "${POSTFETCH_REVISION}" ]] ||
          [[ -n "${GITHUB_ACTIONS}" && -n "${HOMEBREW_UPDATE_SKIP_BREW}" && "${DIR}" == "${HOMEBREW_REPOSITORY}" ]]
@@ -1082,7 +1104,7 @@ EOS
       export HOMEBREW_UPDATE_BEFORE"${TAP_VAR}"="${CURRENT_REVISION}"
       export HOMEBREW_UPDATE_AFTER"${TAP_VAR}"="${CURRENT_REVISION}"
     else
-      merge_or_rebase "${DIR}" "${TAP_VAR}" "${UPSTREAM_BRANCH}"
+      merge_or_rebase "${DIR}" "${TAP_VAR}" "${UPSTREAM_BRANCH}" || return
     fi
   done
 
